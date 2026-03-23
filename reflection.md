@@ -1,6 +1,9 @@
 # PawPal+ Project Reflection
 
 ## 1. System Design
+- The user should be able to add their breed/pet
+- The user should be able to schedule walks or other task throughout the day
+- The user should be able to edit any task on the calendar for that day or any that are planned for the week. 
 
 **a. Initial design**
 
