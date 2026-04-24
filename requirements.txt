@@ -1,2 +1,8 @@
-streamlit>=1.30
+streamlit>=1.36
 pytest>=7.0
+resend>=0.7.0
+
+# Optional — remove if you don't need Google Calendar sync
+google-api-python-client>=2.0
+google-auth-httplib2>=0.2
+google-auth-oauthlib>=1.0

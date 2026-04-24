@@ -1,5 +1,10 @@
 # PawPal+ Enhancement Plan
 
+# Pre-Plan
+  - We are going to create a modal signin for the app where the user will have to sign into the app. Once they are in the app. The app will load their personal dashboard where they are able to use the functionality currently to add their pet species, pet name, Even a place for breed that will be optional. For the owner preferences we want to have a form that they will complete that will schedule their time and if they sync their google account. If there are any conflicts the app will flag the time. 
+
+
+
 ## Context
 
 The user wants to evolve PawPal+ from a functional demo into a professional, robust daily planning tool. Three key upgrades are in scope:
