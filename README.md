@@ -8,7 +8,7 @@
 
 **Original project:** The original project (Modules 1–3) was **PawPal+**, a Streamlit pet care scheduling app built around four core classes — `Owner`, `Pet`, `Task`, and `Scheduler`. PawPal+ let pet owners create pets, schedule care tasks with frequency and priority, detect time-window conflicts, auto-reschedule daily/weekly tasks on completion, and persist all data to SQLite across sessions. It also included user authentication and an email reminder service.
 
-**Capstone extension:** Pet2Go extends PawPal+ with a Claude-powered weekly briefing that uses Retrieval-Augmented Generation (RAG) — the app retrieves the owner's full task schedule from the database, structures it day-by-day with daily tasks expanded across the week, and passes it as context to Claude Haiku, which returns a personalised natural-language summary every time the user signs in. This moves the app from a data organiser to an intelligent assistant that actively communicates what care is needed and when.
+**Capstone extension:** Pet2Go extends PawPal+ with a Gemini-powered weekly briefing that uses Retrieval-Augmented Generation (RAG) — the app retrieves the owner's full task schedule from the database, structures it day-by-day with daily tasks expanded across the week, and passes it as context to Google Gemini (gemini-2.0-flash), which returns a personalised natural-language summary with a unique personality vibe every time the user signs in. This moves the app from a data organiser to an intelligent assistant that actively communicates what care is needed and when.
 
 ---
 
@@ -47,10 +47,10 @@
                                                     │ structured prompt
                                                     ▼
                                          ┌─────────────────────┐
-                                         │  Claude Haiku API   │
-                                         │  (Anthropic)        │
+                                         │  Google Gemini API  │
+                                         │  (gemini-2.0-flash) │
                                          └──────────┬──────────┘
-                                                    │ NL briefing
+                                                    │ NL briefing + vibe
                                                     ▼
                                          ┌─────────────────────┐
                                          │  Briefing Modal     │
@@ -75,14 +75,13 @@ Supporting services in `pawpal/services/`:
 |---|---|
 | `database.py` | SQLite persistence — saves and reloads the full Owner → Pet → Task graph across sessions |
 | `auth.py` | Login gate — protects the dashboard and binds data to a user email |
-| `google_calendar.py` | Optional Google Calendar integration — fetches events and checks for time-window overlaps |
-| `email_service.py` | Sends tomorrow's schedule to a specified email address |
+| `email_service.py` | Sends task summaries to a specified email address on sign-out |
+| `ai_features.py` | RAG layer — retrieves and structures tasks, calls Google Gemini for creative natural-language briefings |
 
 The Streamlit UI (`app.py`) delegates every data operation to these classes and services — no raw data manipulation happens in the UI layer.
 
-**Conflict detection uses two stages:**
-1. Internal check — `Scheduler.detect_conflicts_for_task()` compares the new task's time window against every existing timed task on that pet using duration-aware overlap logic.
-2. Google Calendar check — if connected, `check_task_conflict()` compares against real calendar events. Both warnings surface non-blocking in the UI.
+**Conflict detection:**
+`Scheduler.detect_conflicts_for_task()` compares the new task's time window against every existing timed task on that pet using duration-aware overlap logic. Warnings surface non-blocking in the UI so owners can override if intentional.
 
 ---
 
@@ -113,29 +112,25 @@ source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### 4. (Optional) Enable Google Calendar sync
+### 4. Add API keys
 
-1. Create a Google Cloud project and enable the Google Calendar API.
-2. Download OAuth 2.0 credentials (`Desktop app` type) as `credentials.json` and place it in the project root.
-3. Install the extra dependencies:
+Create `.streamlit/secrets.toml` by copying from the template:
 
 ```bash
-pip install google-api-python-client google-auth-httplib2 google-auth-oauthlib
+cp .streamlit/secrets.toml.example .streamlit/secrets.toml
 ```
 
-4. On first run, click **Connect Google Calendar** in the app and complete the browser auth flow. A `token.json` file is auto-created for future sessions.
-
-### 5. Add API keys
-
-Create `.streamlit/secrets.toml` in the project root:
+Edit `.streamlit/secrets.toml` and add your API keys:
 
 ```toml
-RESEND_API_KEY    = "re_your_resend_key_here"
-ANTHROPIC_API_KEY = "sk-ant-your-anthropic-key-here"
+RESEND_API_KEY = "re_your_resend_key_here"
+GEMINI_API_KEY = "AIza_your_gemini_key_here"
 ```
 
-- `ANTHROPIC_API_KEY` — required for the Claude weekly briefing. Get one at [console.anthropic.com](https://console.anthropic.com).
+- `GEMINI_API_KEY` — required for the Gemini weekly briefing with creative personality vibes. Get one at [Google AI Studio](https://aistudio.google.com/app/apikey).
 - `RESEND_API_KEY` — required for email reminders on sign-out. Get one at [resend.com](https://resend.com). The app runs without it; email features are silently skipped.
+
+**Important:** `.streamlit/secrets.toml` is in `.gitignore` and should never be committed. Never paste real API keys in code or documentation.
 
 ### 6. Run the app
 
@@ -170,7 +165,7 @@ Each table prints its row count, column headers, and all rows aligned in the ter
 | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Add owners & pets**         | Create an owner profile and register multiple pets, each tracked independently.                                                                                     |
 | **Task management**           | Add care tasks to any pet with a description, required start time, frequency, duration, and priority.                                                               |
-| **Conflict warnings**         | Two-stage conflict detection flags overlapping time windows immediately on task add — checks internal schedule first, then Google Calendar if connected.             |
+| **Conflict warnings**         | Conflict detection flags overlapping time windows immediately on task add using duration-aware overlap logic.             |
 | **Sorting by time**           | The schedule is always displayed in chronological order (earliest first). Tasks without a scheduled time are sorted to the bottom automatically.                    |
 | **Filtering**                 | Filter the schedule by pet name, by completion status (pending only), or both at once — without touching any other pet's data.                                      |
 | **Daily & weekly recurrence** | Completing a `daily` or `weekly` task automatically schedules the next occurrence (+1 day or +7 days). One-time and monthly tasks are simply marked done.           |
@@ -198,8 +193,8 @@ Monday, April 27:
 ... (repeated through the week)
 ```
 
-**Claude's output:**
-> "Welcome back, Seth! Tomorrow is a full day for Buddy — make sure to get his morning walk in at 8:00 AM and the evening feed at 6:00 PM. These daily routines will continue all week, so it's a great time to settle into a rhythm. Buddy is lucky to have such a dedicated owner — keep up the great care! 🐾"
+**Gemini's output (one possible vibe — cheerful radio host):**
+> "Hey Seth! Welcome back! Buddy's got quite the schedule tomorrow — you'll kick things off with his morning walk at 8:00 AM, then wrap the day with his evening feed at 6:00 PM. Those two are going to repeat every single day this week, so you're all set for a great routine. Your pup is one lucky dog! 🐾"
 
 ---
 
@@ -213,8 +208,8 @@ Sunday, April 26 (tomorrow):
   - Charlie: Vet checkup at 10:00 AM (60 min, high priority, once)
 ```
 
-**Claude's output:**
-> "Hi there! Tomorrow is an important day — Charlie has a vet checkup at 10:00 AM, which should take about an hour. Make sure to prepare any questions or concerns you want to discuss with the vet beforehand. Charlie is in great hands with you looking out for them! 🐾"
+**Gemini's output (one possible vibe — poetic and caring):**
+> "Welcome back. Tomorrow morning brings an important moment — Charlie's vet checkup at 10:00 AM. It's a single hour, but a cherished one. Prepare your questions gently, and know that Charlie is in capable, loving hands. The bond you share shows in every care you take. 🐾"
 
 ---
 
@@ -276,17 +271,19 @@ python -m pytest
 
 **What worked well:** Testing the logic layer in complete isolation from Streamlit was straightforward — the class structure made it easy to construct `Owner → Pet → Task` graphs in a few lines and assert exact outcomes.
 
-**What was harder:** The Google Calendar integration and email service are not unit tested here because they depend on live credentials and network calls. Those paths are validated manually during development.
+**What was harder:** The email service and Gemini API calls are not unit tested here because they depend on live credentials and network calls. Those paths are validated manually during development.
 
 ---
 
 ## Reflection
 
-Building Pet2Go taught me that integrating AI into a real application is less about prompting and more about data architecture. The hardest part wasn't writing the Claude prompt — it was making sure the right data reached the model in the right shape. Daily tasks that only have one pending instance in the database needed to be expanded across every day of the week before being sent to Claude, otherwise the AI had no way to know a task would repeat tomorrow. That "retrieval and structuring" step is the heart of RAG, and getting it right made the difference between Claude generating a generic greeting and a genuinely useful, specific summary.
+Building Pet2Go taught me that integrating AI into a real application is less about prompting and more about data architecture. The hardest part wasn't writing the Gemini prompt — it was making sure the right data reached the model in the right shape. Daily tasks that only have one pending instance in the database needed to be expanded across every day of the week before being sent to Gemini, otherwise the AI had no way to know a task would repeat tomorrow. That "retrieval and structuring" step is the heart of RAG, and getting it right made the difference between Gemini generating a generic greeting and a genuinely useful, specific summary.
 
-I also learned how quickly silent failures compound. The earliest version of the briefing feature looked like it was working — no errors, no crashes — but Claude was never actually being called because the API key was commented out in secrets.toml and the exception handler silently returned an empty string. Adding structured logging (`_log.warning`, `_log.error` with `exc_info=True`) immediately made invisible failures visible, which is a habit I'll carry into every future project.
+I also learned how quickly silent failures compound. The earliest version of the briefing feature looked like it was working — no errors, no crashes — but the API was never actually being called because the API key was missing or commented out, and the exception handler silently returned an empty string. Adding structured logging (`_log.warning`, `_log.error` with `exc_info=True`) immediately made invisible failures visible, which is a habit I'll carry into every future project.
 
-Finally, the testing suite showed me that AI outputs are hard to assert on directly, but the data pipeline feeding them is fully testable. I can't write a test that checks "Claude said the right thing," but I can write tests that verify completed tasks are excluded, out-of-range tasks are filtered, and the function returns empty when the API key is missing. Separating what the AI does from what the system does around it made the whole application easier to reason about and trust.
+Adding the creative vibe system (10 distinct personality styles picked at random for each login) showed me that injecting personality into an AI prompt isn't expensive — it's just a matter of building a small curated list and sampling it. The temperature tuning from 0 to 1.3 and the shorter token budgets (180 vs 400) also taught me that speed and creativity aren't trade-offs; they enable each other. Faster responses reduce latency on every login, making the app feel snappier, and lower token caps force the model to be more concise and punch above its weight.
+
+Finally, the testing suite showed me that AI outputs are hard to assert on directly, but the data pipeline feeding them is fully testable. I can't write a test that checks "Gemini said the right thing," but I can write tests that verify completed tasks are excluded, out-of-range tasks are filtered, and the function returns empty when the API key is missing. Separating what the AI does from what the system does around it made the whole application easier to reason about and trust.
 
 ---
 
