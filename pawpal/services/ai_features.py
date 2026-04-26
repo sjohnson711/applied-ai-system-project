@@ -42,7 +42,7 @@ def generate_weekly_briefing(
     """Return a creative, warm welcome + task summary for the coming week."""
     genai, _ = _gemini_client()
     if genai is None:
-        _log.warning("GEMINI_API_KEY not set — weekly briefing skipped")
+        _log.warning("GEMINI_API_KEY not set — weekly briefing skipped") #if log is skipped
         return ""
 
     today    = date.today()
@@ -124,7 +124,7 @@ def generate_weekly_briefing(
         _log.info("Weekly briefing generated for %s (%d chars)", owner_name, len(briefing))
         return briefing
     except Exception as exc:
-        _log.error("Gemini API call failed for %s: %s", owner_name, exc, exc_info=True)
+        _log.error("Gemini API call failed for %s: %s", owner_name, exc, exc_info=True) #logs the error if failed api call
         return ""
 
 
