@@ -21,16 +21,26 @@ _VIBES = [
 ]
 
 
-def _gemini_client():
+def _groq_client():
     try:
-        import google.generativeai as genai
+        from groq import Groq
     except ImportError:
-        return None, None
-    api_key = os.environ.get("GEMINI_API_KEY")
+        _log.error("groq package not installed")
+        return None
+    api_key = os.environ.get("GROQ_API_KEY")
+    _log.debug("GROQ_API_KEY from os.environ: %s", "found" if api_key else "missing")
     if not api_key:
-        return None, None
-    genai.configure(api_key=api_key)
-    return genai, api_key
+        try:
+            import streamlit as st
+            api_key = st.secrets["GROQ_API_KEY"]
+            _log.debug("GROQ_API_KEY from st.secrets: found")
+        except KeyError:
+            _log.error("GROQ_API_KEY missing from st.secrets")
+        except Exception as exc:
+            _log.error("st.secrets access failed: %s", exc)
+    if not api_key:
+        return None
+    return Groq(api_key=api_key)
 
 
 def generate_weekly_briefing(
@@ -40,9 +50,9 @@ def generate_weekly_briefing(
     week_end: date,
 ) -> str:
     """Return a creative, warm welcome + task summary for the coming week."""
-    genai, _ = _gemini_client()
-    if genai is None:
-        _log.warning("GEMINI_API_KEY not set — weekly briefing skipped") #if log is skipped
+    client = _groq_client()
+    if client is None:
+        _log.warning("GROQ_API_KEY not set — weekly briefing skipped")
         return ""
 
     today    = date.today()
@@ -112,19 +122,20 @@ def generate_weekly_briefing(
     )
 
     try:
-        model = genai.GenerativeModel(
-            model_name="gemini-2.0-flash",
-            system_instruction=system_prompt,
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user",   "content": user_message},
+            ],
+            max_tokens=180,
+            temperature=1.0,
         )
-        response = model.generate_content(
-            user_message,
-            generation_config={"max_output_tokens": 180, "temperature": 1.3},
-        )
-        briefing = response.text.strip()
+        briefing = response.choices[0].message.content.strip()
         _log.info("Weekly briefing generated for %s (%d chars)", owner_name, len(briefing))
         return briefing
     except Exception as exc:
-        _log.error("Gemini API call failed for %s: %s", owner_name, exc, exc_info=True) #logs the error if failed api call
+        _log.error("Groq API call failed for %s: %s", owner_name, exc, exc_info=True)
         return ""
 
 
@@ -134,8 +145,8 @@ def generate_daily_briefing(
     target_date: Optional[date] = None,
 ) -> str:
     """Return a 3-4 sentence creative daily briefing for the owner."""
-    genai, _ = _gemini_client()
-    if genai is None:
+    client = _groq_client()
+    if client is None:
         return ""
 
     if target_date is None:
@@ -164,14 +175,16 @@ def generate_daily_briefing(
     )
 
     try:
-        model = genai.GenerativeModel(
-            model_name="gemini-2.0-flash",
-            system_instruction=system_prompt,
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user",   "content": user_message},
+            ],
+            max_tokens=150,
+            temperature=1.0,
         )
-        response = model.generate_content(
-            user_message,
-            generation_config={"max_output_tokens": 150, "temperature": 1.3},
-        )
-        return response.text.strip()
-    except Exception:
+        return response.choices[0].message.content.strip()
+    except Exception as exc:
+        _log.error("Groq API call failed for %s: %s", owner_name, exc, exc_info=True)
         return ""

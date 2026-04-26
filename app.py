@@ -105,38 +105,58 @@ _SLIDESHOW_PHOTOS = [
 
 
 def _render_landing_page() -> None:
-    n     = len(_SLIDESHOW_PHOTOS)
-    cycle = n * 10  # 10 seconds per photo, total cycle length in seconds
+    n       = len(_SLIDESHOW_PHOTOS)
+    show_s  = 6.0   # seconds each image stays fully visible
+    fade_s  = 0.8   # seconds for cross-fade between images
+    total_s = n * show_s
 
-    imgs_html = ""
+    slot_pct = show_s / total_s * 100   # e.g. 10% per image for n=10
+    fade_pct = fade_s / total_s * 100   # e.g. 2% for the fade window
+
+    imgs_html   = ""
     style_rules = ""
     for i, photo_id in enumerate(_SLIDESHOW_PHOTOS):
         url = (
             f"https://images.unsplash.com/{photo_id}"
-            f"?w=1400&h=600&fit=crop&crop=faces&auto=format&q=80"
+            f"?w=900&auto=format&q=80"
         )
-        pct_start  = round(i / n * 100, 2)
-        pct_in     = round(pct_start + 2 / n * 100 / 10 * 10 / cycle * 100, 2)
-        # Each image occupies 1/n of the cycle; fade in = 2s, stay = 6s, fade out = 2s
-        slot       = 100 / n
-        fade_in    = round(pct_start + slot * 0.2, 2)
-        stay_end   = round(pct_start + slot * 0.8, 2)
-        slot_end   = round(pct_start + slot, 2)
+
+        slot_start = round(i * slot_pct, 3)
+        full_end   = round(slot_start + slot_pct - fade_pct, 3)
+        slot_end   = round(slot_start + slot_pct, 3)
 
         imgs_html += (
-            f'<img src="{url}" alt="PawPal family" '
+            f'<img src="{url}" alt="Pet photo" '
             f'style="position:absolute;top:0;left:0;width:100%;height:100%;'
-            f'object-fit:cover;object-position:center 20%;opacity:0;animation:fade{i} {cycle}s infinite {i * 10}s both;" />'
+            f'object-fit:cover;object-position:center 30%;opacity:0;'
+            f'animation:fade{i} {total_s}s infinite;" />'
         )
-        style_rules += (
-            f"@keyframes fade{i}{{"
-            f"0%,100%{{opacity:0}}"
-            f"{pct_start}%{{opacity:0}}"
-            f"{fade_in}%{{opacity:1}}"
-            f"{stay_end}%{{opacity:1}}"
-            f"{slot_end}%{{opacity:0}}"
-            f"}}"
-        )
+
+        if i == 0:
+            # Image 0 starts visible; fades back in at end of cycle for seamless loop
+            loop_in = round(100 - fade_pct, 3)
+            style_rules += (
+                f"@keyframes fade{i}{{"
+                f"0%{{opacity:1}}"
+                f"{full_end}%{{opacity:1}}"
+                f"{slot_end}%{{opacity:0}}"
+                f"{loop_in}%{{opacity:0}}"
+                f"100%{{opacity:1}}"
+                f"}}"
+            )
+        else:
+            # Each image fades in during the previous image's fade-out (overlap = no gap)
+            fade_in_start = round(slot_start - fade_pct, 3)
+            style_rules += (
+                f"@keyframes fade{i}{{"
+                f"0%{{opacity:0}}"
+                f"{fade_in_start}%{{opacity:0}}"
+                f"{slot_start}%{{opacity:1}}"
+                f"{full_end}%{{opacity:1}}"
+                f"{slot_end}%{{opacity:0}}"
+                f"100%{{opacity:0}}"
+                f"}}"
+            )
 
     slideshow_html = f"""
 <!DOCTYPE html><html><head><meta charset="utf-8">
@@ -208,7 +228,7 @@ def _render_landing_page() -> None:
             "<div style='font-size:2rem;'>✨</div>"
             "<div style='font-weight:600;margin-top:0.5rem;'>AI Briefing</div>"
             "<div style='color:#64748b;font-size:0.85rem;margin-top:0.25rem;'>"
-            "Natural-language weekly summary powered by Gemini</div></div>",
+            "Natural-language weekly summary powered by Groq</div></div>",
             unsafe_allow_html=True,
         )
 
@@ -366,7 +386,7 @@ def _briefing_modal(owner: Owner, owner_name: str) -> None:
 
     # ── Claude summary ────────────────────────────────────────────────────────
     if "briefing_text" not in st.session_state:
-        with st.spinner("Getting your summary from Gemini…"):
+        with st.spinner("Getting your summary from Groq…"):
             st.session_state.briefing_text = generate_weekly_briefing(
                 owner_name=owner_name,
                 owner=owner,
@@ -382,7 +402,7 @@ def _briefing_modal(owner: Owner, owner_name: str) -> None:
             padding:1rem 1.25rem;margin-bottom:1rem;">
             <p style="margin:0 0 0.4rem 0;font-size:0.75rem;font-weight:600;
             color:#4a6cf7;letter-spacing:0.05em;text-transform:uppercase;">
-            ✨ Gemini's Summary</p>
+            ✨ Groq's Summary</p>
             <p style="margin:0;font-size:0.95rem;color:#1e293b;line-height:1.6;">
             {briefing}</p></div>""",
             unsafe_allow_html=True,
@@ -477,7 +497,7 @@ def _edit_task_modal(pet: "Pet", task: "Task", owner: "Owner", email: str) -> No
 st.set_page_config(page_title="Pet2Go", page_icon="🐾", layout="wide")
 
 # Load API keys from st.secrets into os.environ so service modules pick them up
-for _secret_key in ("RESEND_API_KEY", "GEMINI_API_KEY"):
+for _secret_key in ("RESEND_API_KEY", "GROQ_API_KEY"):
     if _secret_key not in os.environ:
         try:
             os.environ[_secret_key] = st.secrets[_secret_key]

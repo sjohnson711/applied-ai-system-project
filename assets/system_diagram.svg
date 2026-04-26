@@ -74,7 +74,7 @@
 
   <rect x="477" y="346" width="183" height="46" rx="6" fill="#d97706"/>
   <text x="568" y="366" text-anchor="middle" font-size="12" font-weight="700" fill="white">ai_features.py</text>
-  <text x="568" y="383" text-anchor="middle" font-size="9" fill="#fde68a">Gemini briefing  ·  RAG pipeline</text>
+  <text x="568" y="383" text-anchor="middle" font-size="9" fill="#fde68a">Groq briefing  ·  RAG pipeline</text>
 
   <rect x="675" y="346" width="183" height="46" rx="6" fill="#d97706"/>
   <text x="766" y="366" text-anchor="middle" font-size="12" font-weight="700" fill="white">email_service.py</text>
@@ -83,7 +83,7 @@
   <!-- ─── Curved dashed arrows: Services → External ──────────────────────── -->
   <!-- database.py → SQLite -->
   <path d="M 766,332 Q 460,502 157,492" fill="none" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="6,4" marker-end="url(#arr)"/>
-  <!-- ai_features.py → Gemini -->
+  <!-- ai_features.py → Groq -->
   <path d="M 568,392 Q 508,462 450,492" fill="none" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="6,4" marker-end="url(#arr)"/>
   <!-- email_service.py → Resend -->
   <path d="M 766,392 Q 755,452 743,492" fill="none" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="6,4" marker-end="url(#arr)"/>
@@ -101,14 +101,14 @@
   <text x="155" y="597" text-anchor="middle" font-size="9" fill="#64748b">persists across page reloads</text>
   <text x="155" y="617" text-anchor="middle" font-size="9" fill="#475569" font-style="italic">← database.py</text>
 
-  <!-- Google Gemini -->
-  <rect x="331" y="492" width="238" height="137" rx="8" fill="#1e3a8a"/>
+  <!-- Groq -->
+  <rect x="331" y="492" width="238" height="137" rx="8" fill="#7c2d12"/>
   <text x="450" y="524" text-anchor="middle" font-size="22">🤖</text>
-  <text x="450" y="549" text-anchor="middle" font-size="14" font-weight="700" fill="white">Google Gemini</text>
-  <text x="450" y="566" text-anchor="middle" font-size="10" fill="#93c5fd">gemini-2.0-flash</text>
-  <text x="450" y="582" text-anchor="middle" font-size="9" fill="#60a5fa">weekly AI briefing (RAG)</text>
-  <text x="450" y="597" text-anchor="middle" font-size="9" fill="#60a5fa">10-vibe personality system</text>
-  <text x="450" y="617" text-anchor="middle" font-size="9" fill="#3b82f6" font-style="italic">← ai_features.py</text>
+  <text x="450" y="549" text-anchor="middle" font-size="14" font-weight="700" fill="white">Groq</text>
+  <text x="450" y="566" text-anchor="middle" font-size="10" fill="#fed7aa">llama-3.3-70b-versatile</text>
+  <text x="450" y="582" text-anchor="middle" font-size="9" fill="#fdba74">weekly AI briefing (RAG)</text>
+  <text x="450" y="597" text-anchor="middle" font-size="9" fill="#fdba74">10-vibe personality system</text>
+  <text x="450" y="617" text-anchor="middle" font-size="9" fill="#fb923c" font-style="italic">← ai_features.py</text>
 
   <!-- Resend -->
   <rect x="626" y="492" width="238" height="137" rx="8" fill="#3b0764"/>

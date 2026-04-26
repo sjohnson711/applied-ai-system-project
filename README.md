@@ -8,7 +8,7 @@
 
 **Original project:** The original project (Modules 1–3) was **PawPal+**, a Streamlit pet care scheduling app built around four core classes — `Owner`, `Pet`, `Task`, and `Scheduler`. PawPal+ let pet owners create pets, schedule care tasks with frequency and priority, detect time-window conflicts, auto-reschedule daily/weekly tasks on completion, and persist all data to SQLite across sessions. It also included user authentication and an email reminder service.
 
-**Capstone extension:** Pet2Go extends PawPal+ with a Gemini-powered weekly briefing that uses Retrieval-Augmented Generation (RAG) — the app retrieves the owner's full task schedule from the database, structures it day-by-day with daily tasks expanded across the week, and passes it as context to Google Gemini (gemini-2.0-flash), which returns a personalised natural-language summary with a unique personality vibe every time the user signs in. This moves the app from a data organiser to an intelligent assistant that actively communicates what care is needed and when.
+**Capstone extension:** Pet2Go extends PawPal+ with a Groq-powered weekly briefing that uses Retrieval-Augmented Generation (RAG) — the app retrieves the owner's full task schedule from the database, structures it day-by-day with daily tasks expanded across the week, and passes it as context to Groq (llama-3.3-70b-versatile), which returns a personalised natural-language summary with a unique personality vibe every time the user signs in. This moves the app from a data organiser to an intelligent assistant that actively communicates what care is needed and when.
 
 ---
 
@@ -16,51 +16,7 @@
 
 ### System Diagram
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                        Browser (Streamlit)                   │
-└────────────┬───────────────────────────────────┬────────────┘
-             │ credentials                        │ UI interactions
-             ▼                                    ▼
-    ┌─────────────────┐                  ┌─────────────────────┐
-    │    auth.py      │  session token   │      app.py         │
-    │  (login gate /  │ ───────────────► │   (dashboard UI)    │
-    │  validation)    │                  └──────────┬──────────┘
-    └─────────────────┘                             │
-                                                    │ load / save
-                                                    ▼
-                                         ┌─────────────────────┐
-                                         │    database.py      │
-                                         │  (SQLite — Owner /  │
-                                         │   Pet / Task graph) │
-                                         └──────────┬──────────┘
-                                                    │ owner + tasks
-                                                    ▼
-                                         ┌─────────────────────┐
-                                         │   ai_features.py    │
-                                         │   ── RAG Layer ──   │
-                                         │  1. retrieve tasks  │
-                                         │  2. structure by day│
-                                         │  3. expand daily    │
-                                         │  4. call Claude API │
-                                         └──────────┬──────────┘
-                                                    │ structured prompt
-                                                    ▼
-                                         ┌─────────────────────┐
-                                         │  Google Gemini API  │
-                                         │  (gemini-2.0-flash) │
-                                         └──────────┬──────────┘
-                                                    │ NL briefing + vibe
-                                                    ▼
-                                         ┌─────────────────────┐
-                                         │  Briefing Modal     │
-                                         │  (app.py) — shown   │
-                                         │  on every sign-in   │
-                                         └─────────────────────┘
-
-Side services (triggered on sign-out):
-  app.py ──► email_service.py ──► Resend API ──► owner's inbox
-```
+![Pet2Go / PawPal+ System Architecture](assets/system_diagram.svg)
 
 Pet2Go is built around four core classes that keep responsibilities clearly separated:
 
@@ -76,7 +32,7 @@ Supporting services in `pawpal/services/`:
 | `database.py` | SQLite persistence — saves and reloads the full Owner → Pet → Task graph across sessions |
 | `auth.py` | Login gate — protects the dashboard and binds data to a user email |
 | `email_service.py` | Sends task summaries to a specified email address on sign-out |
-| `ai_features.py` | RAG layer — retrieves and structures tasks, calls Google Gemini for creative natural-language briefings |
+| `ai_features.py` | RAG layer — retrieves and structures tasks, calls Groq for creative natural-language briefings |
 
 The Streamlit UI (`app.py`) delegates every data operation to these classes and services — no raw data manipulation happens in the UI layer.
 
@@ -124,10 +80,10 @@ Edit `.streamlit/secrets.toml` and add your API keys:
 
 ```toml
 RESEND_API_KEY = "re_your_resend_key_here"
-GEMINI_API_KEY = "AIza_your_gemini_key_here"
+GROQ_API_KEY = "gsk_your_groq_key_here"
 ```
 
-- `GEMINI_API_KEY` — required for the Gemini weekly briefing with creative personality vibes. Get one at [Google AI Studio](https://aistudio.google.com/app/apikey).
+- `GROQ_API_KEY` — required for the Groq weekly briefing with creative personality vibes. Get one for free at [Groq Console](https://console.groq.com).
 - `RESEND_API_KEY` — required for email reminders on sign-out. Get one at [resend.com](https://resend.com). The app runs without it; email features are silently skipped.
 
 **Important:** `.streamlit/secrets.toml` is in `.gitignore` and should never be committed. Never paste real API keys in code or documentation.
@@ -181,7 +137,7 @@ Each table prints its row count, column headers, and all rows aligned in the ter
 
 **Setup:** Owner "Seth" has a dog named Buddy with two daily tasks: morning walk at 8:00 AM and evening feed at 6:00 PM. Today is Saturday April 25; tasks have rolled forward to Sunday April 26.
 
-**Data sent to Claude:**
+**Data sent to Groq:**
 ```
 Sunday, April 26 (tomorrow):
   - Buddy: Morning walk at 8:00 AM (30 min, high priority, daily)
@@ -193,7 +149,7 @@ Monday, April 27:
 ... (repeated through the week)
 ```
 
-**Gemini's output (one possible vibe — cheerful radio host):**
+**Groq's output (one possible vibe — cheerful radio host):**
 > "Hey Seth! Welcome back! Buddy's got quite the schedule tomorrow — you'll kick things off with his morning walk at 8:00 AM, then wrap the day with his evening feed at 6:00 PM. Those two are going to repeat every single day this week, so you're all set for a great routine. Your pup is one lucky dog! 🐾"
 
 ---
@@ -202,13 +158,13 @@ Monday, April 27:
 
 **Setup:** Owner has a cat named Charlie with a vet checkup scheduled for Sunday April 26 at 10:00 AM (frequency: once).
 
-**Data sent to Claude:**
+**Data sent to Groq:**
 ```
 Sunday, April 26 (tomorrow):
   - Charlie: Vet checkup at 10:00 AM (60 min, high priority, once)
 ```
 
-**Gemini's output (one possible vibe — poetic and caring):**
+**Groq's output (one possible vibe — poetic and caring):**
 > "Welcome back. Tomorrow morning brings an important moment — Charlie's vet checkup at 10:00 AM. It's a single hour, but a cherished one. Prepare your questions gently, and know that Charlie is in capable, loving hands. The bond you share shows in every care you take. 🐾"
 
 ---
@@ -271,19 +227,19 @@ python -m pytest
 
 **What worked well:** Testing the logic layer in complete isolation from Streamlit was straightforward — the class structure made it easy to construct `Owner → Pet → Task` graphs in a few lines and assert exact outcomes.
 
-**What was harder:** The email service and Gemini API calls are not unit tested here because they depend on live credentials and network calls. Those paths are validated manually during development.
+**What was harder:** The email service and Groq API calls are not unit tested here because they depend on live credentials and network calls. Those paths are validated manually during development.
 
 ---
 
 ## Reflection
 
-Building Pet2Go taught me that integrating AI into a real application is less about prompting and more about data architecture. The hardest part wasn't writing the Gemini prompt — it was making sure the right data reached the model in the right shape. Daily tasks that only have one pending instance in the database needed to be expanded across every day of the week before being sent to Gemini, otherwise the AI had no way to know a task would repeat tomorrow. That "retrieval and structuring" step is the heart of RAG, and getting it right made the difference between Gemini generating a generic greeting and a genuinely useful, specific summary.
+Building Pet2Go taught me that integrating AI into a real application is less about prompting and more about data architecture. The hardest part wasn't writing the Groq prompt — it was making sure the right data reached the model in the right shape. Daily tasks that only have one pending instance in the database needed to be expanded across every day of the week before being sent to Groq, otherwise the AI had no way to know a task would repeat tomorrow. That "retrieval and structuring" step is the heart of RAG, and getting it right made the difference between Groq generating a generic greeting and a genuinely useful, specific summary.
 
 I also learned how quickly silent failures compound. The earliest version of the briefing feature looked like it was working — no errors, no crashes — but the API was never actually being called because the API key was missing or commented out, and the exception handler silently returned an empty string. Adding structured logging (`_log.warning`, `_log.error` with `exc_info=True`) immediately made invisible failures visible, which is a habit I'll carry into every future project.
 
 Adding the creative vibe system (10 distinct personality styles picked at random for each login) showed me that injecting personality into an AI prompt isn't expensive — it's just a matter of building a small curated list and sampling it. The temperature tuning from 0 to 1.3 and the shorter token budgets (180 vs 400) also taught me that speed and creativity aren't trade-offs; they enable each other. Faster responses reduce latency on every login, making the app feel snappier, and lower token caps force the model to be more concise and punch above its weight.
 
-Finally, the testing suite showed me that AI outputs are hard to assert on directly, but the data pipeline feeding them is fully testable. I can't write a test that checks "Gemini said the right thing," but I can write tests that verify completed tasks are excluded, out-of-range tasks are filtered, and the function returns empty when the API key is missing. Separating what the AI does from what the system does around it made the whole application easier to reason about and trust.
+Finally, the testing suite showed me that AI outputs are hard to assert on directly, but the data pipeline feeding them is fully testable. I can't write a test that checks "Groq said the right thing," but I can write tests that verify completed tasks are excluded, out-of-range tasks are filtered, and the function returns empty when the API key is missing. Separating what the AI does from what the system does around it made the whole application easier to reason about and trust.
 
 ---
 

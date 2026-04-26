@@ -1,5 +1,5 @@
 import os
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timedelta
 
 try:
     import resend as _resend
@@ -42,14 +42,8 @@ def send_signout_email(
     to_email: str,
     owner_name: str,
     owner,
-    delay_minutes: int = 60,
 ) -> tuple[bool, str]:
-    """Schedule a task-summary email to arrive delay_minutes after sign-out via Resend.
-
-    Collects all incomplete tasks across every pet, picks today as the target date
-    before 20:00 and tomorrow after, then calls Resend with scheduled_at so delivery
-    happens without a background thread.
-    """
+    """Send a task-summary email immediately on sign-out via Resend."""
     if not RESEND_AVAILABLE:
         return False, "resend package is not installed. Run: pip install resend"
 
@@ -69,7 +63,6 @@ def send_signout_email(
 
     now = datetime.now()
     target_date = now.date() if now.hour < 20 else (now + timedelta(days=1)).date()
-    send_at = datetime.now(timezone.utc) + timedelta(minutes=delay_minutes)
 
     _resend.api_key = api_key
     params = {
@@ -77,11 +70,10 @@ def send_signout_email(
         "to": [to_email],
         "subject": f"PawPal+ — Task Summary for {target_date.strftime('%A, %B %-d')}",
         "html": _build_signout_html(owner_name, task_rows, target_date),
-        "scheduled_at": send_at.isoformat(),
     }
     try:
         _resend.Emails.send(params)
-        return True, f"Summary scheduled — you'll receive it in {delay_minutes} minutes at {to_email}."
+        return True, f"Summary sent to {to_email}."
     except Exception as exc:
         return False, str(exc)
 
