@@ -1,7 +1,7 @@
 # Pet2Go
 
 ---
-
+## Link to the Loom Presentation: https://www.loom.com/share/a507a03120ee4fb78d00e692c81bf426
 ## Title and Summary
 
 **Title:** Pet2Go — AI-Powered Pet Care Scheduler
