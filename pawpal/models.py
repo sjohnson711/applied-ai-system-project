@@ -165,20 +165,49 @@ class Scheduler:
             key=lambda task: task.time if task.time is not None else datetime.max
         )
 
+    @staticmethod
+    def _tasks_overlap(a: Task, b: Task) -> bool:
+        """Return True if task a and task b have overlapping time windows."""
+        if a.time is None or b.time is None:
+            return False
+        a_end = a.time + timedelta(minutes=max(a.duration, 1))
+        b_end = b.time + timedelta(minutes=max(b.duration, 1))
+        return a.time < b_end and b.time < a_end
+
     def detect_conflicts(self) -> List[str]:
-        """Detect tasks sharing an identical datetime within the same pet's schedule."""
+        """Detect overlapping task time windows within the same pet's schedule."""
         warnings: List[str] = []
         for pet in self.owner.pets:
             timed_tasks = [t for t in pet.get_tasks() if t.time is not None]
             for i in range(len(timed_tasks)):
                 for j in range(i + 1, len(timed_tasks)):
-                    if timed_tasks[i].time == timed_tasks[j].time:
-                        time_str = timed_tasks[i].time.strftime('%H:%M')
+                    if self._tasks_overlap(timed_tasks[i], timed_tasks[j]):
+                        ti, tj = timed_tasks[i], timed_tasks[j]
                         warnings.append(
-                            f"WARNING: '{timed_tasks[i].description}' and "
-                            f"'{timed_tasks[j].description}' are both scheduled at "
-                            f"{time_str} for {pet.name}."
+                            f"WARNING: '{ti.description}' "
+                            f"({ti.time.strftime('%H:%M')}, {ti.duration} min) and "
+                            f"'{tj.description}' "
+                            f"({tj.time.strftime('%H:%M')}, {tj.duration} min) "
+                            f"overlap for {pet.name}."
                         )
+        return warnings
+
+    def detect_conflicts_for_task(self, new_task: Task, pet: Pet) -> List[str]:
+        """Return conflict warnings between new_task and a pet's existing timed tasks."""
+        if new_task.time is None:
+            return []
+        warnings: List[str] = []
+        for existing in pet.get_tasks():
+            if existing is new_task or existing.time is None:
+                continue
+            if self._tasks_overlap(new_task, existing):
+                warnings.append(
+                    f"⚠️ '{new_task.description}' "
+                    f"({new_task.time.strftime('%H:%M')}, {new_task.duration} min) "
+                    f"overlaps with '{existing.description}' "
+                    f"({existing.time.strftime('%H:%M')}, {existing.duration} min) "
+                    f"for {pet.name}."
+                )
         return warnings
 
     def generate_schedule(self) -> List[tuple]:

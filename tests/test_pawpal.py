@@ -132,13 +132,97 @@ def test_generate_schedule_priority_order():
 	assert schedule[0][1] is high_task   # high priority task must come first
 	assert schedule[1][1] is low_task
 
+# ─── detect_conflicts_for_task() tests ──────────────────────────────────────
+# Validates the immediate conflict check called in app.py when a task is added.
+# Returns a list of warning strings; an empty list means no conflicts.
+
+# Test: new task whose time window overlaps an existing task triggers a warning.
+def test_detect_conflicts_for_task_flags_overlap():
+	owner = Owner("Hannah")
+	pet = Pet(name="Max", species="Dog")
+	owner.add_pet(pet)
+
+	existing = Task(description="Morning Walk", time=datetime(2026, 3, 28, 9, 0), duration=60)
+	pet.add_task(existing)
+
+	# Starts 20 min into Morning Walk's 60-min window — overlaps
+	new_task = Task(description="Vet Check", time=datetime(2026, 3, 28, 9, 20), duration=30)
+	pet.add_task(new_task)
+
+	scheduler = Scheduler(owner)
+	warnings = scheduler.detect_conflicts_for_task(new_task, pet)
+
+	assert len(warnings) == 1
+	assert "Vet Check" in warnings[0]
+	assert "Morning Walk" in warnings[0]
+	assert "Max" in warnings[0]
+
+
+# Test: tasks with non-overlapping time windows return an empty list.
+def test_detect_conflicts_for_task_no_overlap():
+	owner = Owner("Ivan")
+	pet = Pet(name="Bella", species="Cat")
+	owner.add_pet(pet)
+
+	existing = Task(description="Morning Feed", time=datetime(2026, 3, 28, 8, 0), duration=15)
+	pet.add_task(existing)
+
+	# Evening Walk starts 10 hours after Morning Feed ends — no overlap
+	new_task = Task(description="Evening Walk", time=datetime(2026, 3, 28, 18, 0), duration=30)
+	pet.add_task(new_task)
+
+	scheduler = Scheduler(owner)
+	warnings = scheduler.detect_conflicts_for_task(new_task, pet)
+
+	assert warnings == []
+
+
+# Test: a task with time=None skips the overlap check entirely.
+def test_detect_conflicts_for_task_no_time():
+	owner = Owner("Jane")
+	pet = Pet(name="Charlie", species="Dog")
+	owner.add_pet(pet)
+
+	existing = Task(description="Feed", time=datetime(2026, 3, 28, 9, 0), duration=15)
+	pet.add_task(existing)
+
+	new_task = Task(description="Grooming", time=None, duration=30)
+	pet.add_task(new_task)
+
+	scheduler = Scheduler(owner)
+	warnings = scheduler.detect_conflicts_for_task(new_task, pet)
+
+	assert warnings == []  # timeless tasks never trigger a warning
+
+
+# ─── Self-reference guard ─────────────────────────────────────────────────────
+# detect_conflicts_for_task() must skip new_task itself when scanning the pet's
+# existing tasks. Without this guard, a task would always "conflict" with itself
+# the moment it is added to the pet's list.
+def test_detect_conflicts_for_task_ignores_self():
+	owner = Owner("Karl")
+	pet = Pet(name="Daisy", species="Dog")
+	owner.add_pet(pet)
+
+	task = Task(description="Walk", time=datetime(2026, 3, 28, 9, 0), duration=30)
+	pet.add_task(task)
+
+	scheduler = Scheduler(owner)
+	# Pass the same task as new_task — should not report a conflict with itself
+	warnings = scheduler.detect_conflicts_for_task(task, pet)
+
+	assert warnings == []
+
+
 # Test that generate_schedule() skips tasks that exceed the available_minutes budget.
 def test_generate_schedule_respects_time_budget():
 	owner = Owner("Grace", preferences={'max_tasks_per_day': 10, 'available_minutes': 30})
 	pet = Pet(name="Coco", species="Cat")
-	owner.add_pet(pet)
+	owner.add_pet(pet)  # line 221: pet registered on an owner with a 30-min time budget
 
+	# line 223: "Feed" costs 10 min — fits inside the 30-min available_minutes cap
 	fits = Task(description="Feed", frequency="daily", duration=10, priority="medium")
+	# "Grooming" costs 60 min — exceeds the 30-min cap and must be excluded even at high priority
 	too_long = Task(description="Grooming", frequency="weekly", duration=60, priority="high")
 	pet.add_task(too_long)  # high priority but won't fit
 	pet.add_task(fits)
