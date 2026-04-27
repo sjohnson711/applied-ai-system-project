@@ -3,3 +3,9 @@ __pycache__/
 .venv_new/
 .pytest_cache/
 .DS_Store
+.streamlit/secrets.toml
+.env
+.env.local
+credentials.json
+token.json
+pawpal.db

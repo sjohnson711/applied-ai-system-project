@@ -1,2 +1,5 @@
-streamlit>=1.30
+streamlit>=1.36
 pytest>=7.0
+resend>=0.7.0
+google-generativeai>=0.8
+groq>=1.0
