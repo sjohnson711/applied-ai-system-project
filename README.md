@@ -243,8 +243,3 @@ Finally, the testing suite showed me that AI outputs are hard to assert on direc
 
 ---
 
-## Demo
-
-<a href="pawpal_screenshot.png" target="_blank"><img src='pawpal_screenshot.png'/>
-
-![alt text](pawpal_screenshot.png)
