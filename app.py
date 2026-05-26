@@ -358,7 +358,7 @@ if(s){{s.scrollTop=Math.max(0,{now_top}-120);}}
 </body></html>"""
 
 
-# ─── Claude briefing modal ───────────────────────────────────────────────────
+# ─── Groq briefing modal ───────────────────────────────────────────────────
 
 @st.dialog("📋 Your Week Ahead")
 def _briefing_modal(owner: Owner, owner_name: str) -> None:
@@ -497,7 +497,7 @@ def _edit_task_modal(pet: "Pet", task: "Task", owner: "Owner", email: str) -> No
 st.set_page_config(page_title="Pet2Go", page_icon="🐾", layout="wide")
 
 # Load API keys from st.secrets into os.environ so service modules pick them up
-for _secret_key in ("RESEND_API_KEY", "GROQ_API_KEY"):
+for _secret_key in ("RESEND_API_KEY", "GROQ_API_KEY", "GMAIL_USER", "GMAIL_APP_PASSWORD"):
     if _secret_key not in os.environ:
         try:
             os.environ[_secret_key] = st.secrets[_secret_key]

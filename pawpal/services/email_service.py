@@ -1,11 +1,27 @@
 import os
+import smtplib
 from datetime import date, datetime, timedelta
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
-try:
-    import resend as _resend
-    RESEND_AVAILABLE = True
-except ImportError:
-    RESEND_AVAILABLE = False
+
+def _send_gmail(to_email: str, subject: str, html: str) -> tuple[bool, str]:
+    user = os.environ.get("GMAIL_USER", "")
+    password = os.environ.get("GMAIL_APP_PASSWORD", "")
+    if not user or not password:
+        return False, "Gmail credentials are not configured."
+    try:
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = subject
+        msg["From"] = f"PawPal+ <{user}>"
+        msg["To"] = to_email
+        msg.attach(MIMEText(html, "html"))
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            server.login(user, password)
+            server.sendmail(user, to_email, msg.as_string())
+        return True, f"Email sent to {to_email}."
+    except Exception as exc:
+        return False, str(exc)
 
 
 def send_schedule_email(
@@ -14,28 +30,10 @@ def send_schedule_email(
     schedule: list,
     for_date: date,
 ) -> tuple[bool, str]:
-    """Send the generated schedule for for_date via Resend. Returns (success, message)."""
-    if not RESEND_AVAILABLE:
-        return False, "resend package is not installed. Run: pip install resend"
-
-    api_key = os.environ.get("RESEND_API_KEY", "")
-    if not api_key:
-        return False, "RESEND_API_KEY environment variable is not set."
-
-    _resend.api_key = api_key
+    """Send the generated schedule for for_date via Gmail. Returns (success, message)."""
     subject = f"PawPal+ — Schedule for {for_date.strftime('%A, %B %d')}"
-
-    params = {
-        "from": "PawPal+ <onboarding@resend.dev>",
-        "to": [to_email],
-        "subject": subject,
-        "html": _build_html(owner_name, schedule, for_date),
-    }
-    try:
-        _resend.Emails.send(params)
-        return True, f"Schedule sent to {to_email}!"
-    except Exception as exc:
-        return False, str(exc)
+    ok, msg = _send_gmail(to_email, subject, _build_html(owner_name, schedule, for_date))
+    return ok, f"Schedule sent to {to_email}!" if ok else msg
 
 
 def send_signout_email(
@@ -43,14 +41,7 @@ def send_signout_email(
     owner_name: str,
     owner,
 ) -> tuple[bool, str]:
-    """Send a task-summary email immediately on sign-out via Resend."""
-    if not RESEND_AVAILABLE:
-        return False, "resend package is not installed. Run: pip install resend"
-
-    api_key = os.environ.get("RESEND_API_KEY", "")
-    if not api_key:
-        return False, "RESEND_API_KEY environment variable is not set."
-
+    """Send a task-summary email immediately on sign-out via Gmail."""
     task_rows = [
         (pet, task)
         for pet in owner.pets
@@ -63,19 +54,54 @@ def send_signout_email(
 
     now = datetime.now()
     target_date = now.date() if now.hour < 20 else (now + timedelta(days=1)).date()
+    subject = f"PawPal+ — Task Summary for {target_date.strftime('%A, %B %-d')}"
+    return _send_gmail(to_email, subject, _build_signout_html(owner_name, task_rows, target_date))
 
-    _resend.api_key = api_key
-    params = {
-        "from": "PawPal+ <onboarding@resend.dev>",
-        "to": [to_email],
-        "subject": f"PawPal+ — Task Summary for {target_date.strftime('%A, %B %-d')}",
-        "html": _build_signout_html(owner_name, task_rows, target_date),
-    }
-    try:
-        _resend.Emails.send(params)
-        return True, f"Summary sent to {to_email}."
-    except Exception as exc:
-        return False, str(exc)
+
+def send_task_alert_email(
+    to_email: str,
+    owner_name: str,
+    tasks: list,
+) -> tuple[bool, str]:
+    """Send a session-end summary of newly added tasks. tasks is [(pet_name, task), ...]."""
+    if not tasks:
+        return False, "No tasks to include in the alert."
+    return _send_gmail(
+        to_email,
+        "PawPal+ — Tasks added this session",
+        _build_task_alert_html(owner_name, tasks),
+    )
+
+
+def send_recovery_email(
+    to_email: str,
+    username: str,
+    temp_password: str,
+) -> tuple[bool, str]:
+    """Send an account recovery email containing the username and a temporary password."""
+    html = f"""<!DOCTYPE html>
+<html>
+<body style="font-family:sans-serif;max-width:520px;margin:auto;padding:24px;color:#222">
+  <h2 style="color:#2c3e50">🐾 PawPal+ — Account Recovery</h2>
+  <p>We received a recovery request for your account.</p>
+  <table cellpadding="10" cellspacing="0" style="width:100%;border-collapse:collapse;">
+    <tr>
+      <td style="background:#f4f4f4;font-weight:bold;width:40%;">Username</td>
+      <td style="border:1px solid #ddd;padding:10px;font-family:monospace;">{username}</td>
+    </tr>
+    <tr>
+      <td style="background:#f4f4f4;font-weight:bold;">Temporary password</td>
+      <td style="border:1px solid #ddd;padding:10px;font-family:monospace;">{temp_password}</td>
+    </tr>
+  </table>
+  <p style="margin-top:20px;">Sign in with your username and this temporary password,
+  then update your password from your account settings.</p>
+  <p style="margin-top:28px;font-size:13px;color:#888">
+    Sent by PawPal+ &mdash; your personal pet care planner.
+  </p>
+</body>
+</html>"""
+    return _send_gmail(to_email, "PawPal+ — Account Recovery", html)
 
 
 def _build_html(owner_name: str, schedule: list, for_date: date) -> str:
@@ -122,36 +148,6 @@ def _build_html(owner_name: str, schedule: list, for_date: date) -> str:
     """
 
 
-def send_task_alert_email(
-    to_email: str,
-    owner_name: str,
-    tasks: list,
-) -> tuple[bool, str]:
-    """Send a session-end summary of newly added tasks. tasks is [(pet_name, task), ...]."""
-    if not tasks:
-        return False, "No tasks to include in the alert."
-
-    if not RESEND_AVAILABLE:
-        return False, "resend package is not installed."
-
-    api_key = os.environ.get("RESEND_API_KEY", "")
-    if not api_key:
-        return False, "RESEND_API_KEY environment variable is not set."
-
-    _resend.api_key = api_key
-    params = {
-        "from": "PawPal+ <onboarding@resend.dev>",
-        "to": [to_email],
-        "subject": "PawPal+ — Tasks added this session",
-        "html": _build_task_alert_html(owner_name, tasks),
-    }
-    try:
-        _resend.Emails.send(params)
-        return True, f"Task alert sent to {to_email}."
-    except Exception as exc:
-        return False, str(exc)
-
-
 def _build_task_alert_html(owner_name: str, tasks: list) -> str:
     """Build the HTML body for a session task-added summary email."""
     _priority_color = {"high": "#e74c3c", "medium": "#f39c12", "low": "#27ae60"}
@@ -196,55 +192,6 @@ def _build_task_alert_html(owner_name: str, tasks: list) -> str:
   </p>
 </body>
 </html>"""
-
-
-def send_recovery_email(
-    to_email: str,
-    username: str,
-    temp_password: str,
-) -> tuple[bool, str]:
-    """Send an account recovery email containing the username and a temporary password."""
-    if not RESEND_AVAILABLE:
-        return False, "resend package is not installed. Run: pip install resend"
-
-    api_key = os.environ.get("RESEND_API_KEY", "")
-    if not api_key:
-        return False, "RESEND_API_KEY environment variable is not set."
-
-    _resend.api_key = api_key
-    html = f"""<!DOCTYPE html>
-<html>
-<body style="font-family:sans-serif;max-width:520px;margin:auto;padding:24px;color:#222">
-  <h2 style="color:#2c3e50">🐾 PawPal+ — Account Recovery</h2>
-  <p>We received a recovery request for your account.</p>
-  <table cellpadding="10" cellspacing="0" style="width:100%;border-collapse:collapse;">
-    <tr>
-      <td style="background:#f4f4f4;font-weight:bold;width:40%;">Username</td>
-      <td style="border:1px solid #ddd;padding:10px;font-family:monospace;">{username}</td>
-    </tr>
-    <tr>
-      <td style="background:#f4f4f4;font-weight:bold;">Temporary password</td>
-      <td style="border:1px solid #ddd;padding:10px;font-family:monospace;">{temp_password}</td>
-    </tr>
-  </table>
-  <p style="margin-top:20px;">Sign in with your username and this temporary password,
-  then update your password from your account settings.</p>
-  <p style="margin-top:28px;font-size:13px;color:#888">
-    Sent by PawPal+ &mdash; your personal pet care planner.
-  </p>
-</body>
-</html>"""
-    params = {
-        "from": "PawPal+ <onboarding@resend.dev>",
-        "to": [to_email],
-        "subject": "PawPal+ — Account Recovery",
-        "html": html,
-    }
-    try:
-        _resend.Emails.send(params)
-        return True, f"Recovery email sent to {to_email}."
-    except Exception as exc:
-        return False, str(exc)
 
 
 def _build_signout_html(owner_name: str, task_rows: list, for_date: date) -> str:
